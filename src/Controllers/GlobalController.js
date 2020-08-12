@@ -43,6 +43,18 @@ function redirect(req,res){
             md_auth.ensureAuth(req,res);
             tweetController.viewTweets(req,res);
         break;
+        case 'like_tweet':
+            md_auth.ensureAuth(req,res);
+            tweetController.likeTweet(req,res)
+        break;
+        case 'retweet':
+            md_auth.ensureAuth(req,res);
+            tweetController.retweet(req,res)
+        break;
+        case 'reply_tweet':
+            md_auth.ensureAuth(req,res);
+            tweetController.replyTweet(req,res)
+        break;
         default:
             return res.status(500).send({message: 'Error, revise el comando'})
     }

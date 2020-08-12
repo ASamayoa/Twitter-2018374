@@ -71,10 +71,78 @@ async function viewTweets (req,res){
             var reviewUser = await User.findOne({ _id: req.user.sub, 'following.user': params[1]});
             if(!reviewUser) return res.status(500).send({ message: "Debe seguir al usuario para ver sus Tweets" }); 
         }
-        const findedTweets = await Tweet.find({user:findUser._id});
+        const findedTweets = await Tweet.find({user:findUser._id},{likes:0,retweet:0,comments:0});
         return res.status(500).send({ message: findedTweets });         
     } catch (error) {
         return res.status(500).send({ message: error });
+    }
+}
+
+async function likeTweet (req,res){
+    const params = req.body.command.split(" ");
+    try {
+        const findedTweet = await Tweet.findOne({_id:params[1], 'likes.user':req.user.sub});
+        if(!findedTweet){
+            const likedTweet = await Tweet.findByIdAndUpdate(params[1], {$inc:{countLikes:1},$push:{likes:{user:req.user.sub}}},{new:true});
+            return res.status(200).send({likedTweet}) 
+        }else{
+            const likedTweet = await Tweet.findByIdAndUpdate(params[1], {$inc:{countLikes:-1},$pull:{likes:{user:req.user.sub}}}, {new:true});
+            return res.status(200).send({likedTweet}) 
+        }
+    } catch (error) {
+        return res.status(500).send({Error: error.message})
+    }
+}
+
+async function retweet (req,res){
+    const params = req.body.command.split(" ");
+    try {
+        const findedTweet = await Tweet.findOne({_id:params[1], 'retweet.user':req.user.sub});
+        if(!findedTweet){
+            const retweetedTweet = await Tweet.findByIdAndUpdate(params[1], {$inc:{countRetweets:1},$push:{retweet:{user:req.user.sub}}},{new:true});
+            let D = new Date
+            let dia = D.getDate()
+            let mes = D.getMonth()+1
+            let year = D.getFullYear()
+            let newTweet = new Tweet;
+            newTweet.type = 'retweet';
+            newTweet.content = retweetedTweet.content;
+            newTweet.user = req.user.sub;
+            newTweet.reference = {tweet: retweetedTweet._id};
+            newTweet.createDate = (year+'-'+mes+'-'+dia);
+            const newRetweet = await newTweet.save();
+            return res.status(200).send({newRetweet});
+        }else{
+            const likedTweet = await Tweet.findByIdAndUpdate(params[1], {$inc:{countRetweets:-1},$pull:{retweet:{user:req.user.sub}}}, {new:true});
+            const deletedRetweet = await Tweet.findOneAndDelete({type: 'retweet', 'reference.tweet': params[1], user:req.user.sub});
+            return res.status(200).send({deletedRetweet}); 
+        }
+    } catch (error) {
+        return res.status(500).send({Error: error.message})
+    }
+}
+
+async function replyTweet (req,res){
+    const params = req.body.command.split(" ");
+    const tweet = req.body.command.substring(36);
+
+    try {
+        const originalTweet = await Tweet.findByIdAndUpdate(params[1],{$inc:{countComments:1}},{new:true});
+        //throw new Error
+        let D = new Date
+        let dia = D.getDate()
+        let mes = D.getMonth()+1
+        let year = D.getFullYear()
+        let reply = new Tweet;
+        reply.user = req.user.sub;
+        reply.type = 'reply';
+        reply.content = tweet;
+        reply.reference = originalTweet.reference.concat({tweet: originalTweet._id});
+        reply.createDate = (year+'-'+mes+'-'+dia);
+        const newReply = await reply.save();
+        return res.status(200).send({newReply});
+    } catch (error) {
+        return res.status(500).send({Error:error.message})
     }
 }
 
@@ -83,4 +151,7 @@ module.exports = {
     editTweet,
     deleteTweet,
     viewTweets,
+    likeTweet,
+    retweet,
+    replyTweet
 }
